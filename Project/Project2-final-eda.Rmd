@@ -1,0 +1,1264 @@
+---
+title: "Exploratory Data Analysis of Prosper Loan Data"
+author: "Tania Moulik"
+date: "February 27, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE, results=FALSE,echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo =FALSE, message=FALSE, warning=FALSE)
+```
+```{r lib}
+require(lubridate)
+require(dplyr)
+#require(plyr)
+require(ggplot2)
+require(gridExtra) #For creating multiple plots together
+library(alr3)
+library(energy)
+require(caret)
+library(gdata)
+require(RColorBrewer)
+
+```
+
+### Introduction
+In this report, I am analysing the Prosper Loan Data, using a  number of 
+different visualizations which can be categorized as univariate, bivariate 
+and multivariate. A glimpse of the data shows that there are 81 varaibles 
+and 113937 observations. For the sake of submission, I don't print all the 
+variables. I explain the variales I chose, as I explain each section. The 
+variables pertain to the actual loan, and variables which can affect the 
+credit score of a person which in turn influences the APR of the loan. First, 
+I read the variables description in the provided file. Based on the available 
+data, some of the broad questions I hope to address in this analysis are :
+a) How does the BorrowerAPR depend on Credit Score and other variables.
+b) What kinds of loans are there, and what leads to a loan being defaulted 
+vs. being paid off?
+c) Which variables most influence the credit score?
+
+Other questions that arise, while I visualize the data are mentioned in the 
+separate chunks. I have combined univariate, bivariate and multivariate plots 
+in the chunks because my focus was in understanding a variable well enough 
+before investigating another which required a combination of plots. 
+
+##### Read Data File and first Look at the data.
+First,I load the data and get the variable names, and take a first look 
+by summarising the data.
+
+```{r load}
+dirname="data"
+files=dir(dirname)
+df_orig <- read.csv(paste(dirname,files,sep='/'))
+
+#df_orig <- read.csv(paste(dirname,files,sep='/'),nrows=10000)
+
+```
+```{r}
+n1=nrow(df_orig)
+n2=ncol(df_orig)
+
+```
+
+The data set has 81 variables with 113937 observations for each. I then print 
+out the column names and use glimpse to view the data. 
+
+I just print some of the variables here. 
+(Note : The variables which I choose are talked about later. I am not making a 
+selection here.I am showing the steps that I took, as I did the analysis 
+as required in the project)
+
+For the first look, I print out all column names and a summary of the data. 
+But for the sake of submission, I am printing just a few variables as output. 
+
+
+```{r}
+#df <- df_orig[sample(1:nrow(df_orig), 5000,replace=FALSE),]
+df <- df_orig
+
+#What are the variables in the data 
+
+#I use column numbers (in no particular preference) as opposed to 
+#variable names at this point. This is just to have a first glimpse of 
+#the data. I choose and explain the variables for the analysis later.
+
+colnames(df)[4:12]
+summary(df[c(4:12)])
+
+```
+The summary is very useful, because one can immediately get an idea of the type 
+of variables and some of the important statistics such as mean, median and their 
+quartiles. For categorical variables, it prints out the levels.
+
+##### Missing Data
+I am interested to see NA counts for the variables and count columns which have 
+too many Null Values, as for visualization purposes I would like to look at 
+variables which have enough statistics and can convey some details about the 
+data. However, I am not choosing variables just because they have a low NA 
+count. That choice is based on the questions I seek to answer. Still, I find it 
+good to get an overall view of which variables have a lot of missing data.
+
+```{r results='hide'}
+na_count <-sapply(df, function(y) sum(length(which(is.na(y)))))
+nacount <- as.data.frame(na_count)
+nacount <- cbind(rownames(nacount), nacount)
+rownames(nacount) <- NULL
+colnames(nacount)[1] <- "Variable"
+nacount <- nacount[order(na_count),]
+nacount
+```
+
+Some of the varables in no particular preference or order, with large number 
+of NA's are 
+
+OpenCreditLines	7604		
+PublicRecordsLast12Months	7604		
+RevolvingCreditBalance	7604		
+BankcardUtilization	7604		
+AmountDelinquent	7622		
+EmploymentStatusDuration	7625		
+DebtToIncomeRatio	8554		
+EstimatedEffectiveYield	29084		
+EstimatedLoss	29084		
+EstimatedReturn	29084	
+
+while those with 0 or small NA count's are
+
+IncomeVerifiable,StatedMonthlyIncome,LoanCurrentDaysDelinquent,
+LoanMonthsSinceOrigination,LoanNumber,LoanOriginalAmount,LoanOriginationDate and 
+so on.
+
+This is expected, as everyone has a loan, but some may be good 
+lendees and not have Publicrecords, or have delinquent accounts. So for those 
+people, this information will be unavailable.
+
+### Variable Choice 
+
+Some variables that are very obvious choices for the study, based on the overall
+questions I posed earlier are the following:
+
+* BorrowerAPR
+* LoanStatus
+* CreditScore
+* CreditRange
+* LoanCreationYear (Transformed from LoanOriginationDate)
+* LoanCurrentDaysDelinquent
+
+Some other variables are more difficult to choose at the first step of the 
+analysis, and I chose them based on further studies. I list the variables 
+I explored here, though the reasons for their choice are discussed later.
+
+* EmploymentStatus
+* CurrentCreditLines                  
+* OpenCreditLines
+* AmountDelinquent                    
+* CurrentDelinquencies
+* PublicRecordsLast12Months
+* AvailableBankcardCredit            
+* TotalTrades              
+* TradesNeverDelinquent..percentage.
+* DebtToIncomeRatio   
+* IncomeRange  
+* InquiriesLast6Months
+* OpenRevolvingMonthlyPayment
+
+#### BorrowerAPR Study
+
+Firstly, I looked at the BorrowerAPR and wanted to see if the BorrowerAPR varies 
+with Year. So for this I needed to extract the year. But my dilemma was 
+which Date to use. There were a number of Date variables.
+
+```{r echo=TRUE, fig.align='left',fig.height=4, fig.width=5}
+
+df$ListCreationYear <- format(as.Date(df$ListingCreationDate),"%Y")
+df$LoanCreationYear <- format(as.Date(df$LoanOriginationDate),"%Y")
+df$CreditPullYear <- format(as.Date(df$DateCreditPulled),"%Y")
+df$FirstRecordedCreditYear <- format(as.Date(df$FirstRecordedCreditLine),"%Y")
+
+p1<- qplot(df$ListCreationYear,df$LoanCreationYear)
+p2 <- qplot(df$CreditPullYear,df$LoanCreationYear)
+grid.arrange(p1,p2,nrow=2)
+```
+
+#### New Variables : 
+I created "Year" variables as can be seen in the code above.
+From the above plot, the LoanCreationYear is either in the same year as the 
+CreditPullYear or the consecutive year. This means that the LoanCreationYear 
+is the more recent Date hence the borrowerAPR was fixed for that particular year.
+
+
+Note that in 2007 and 2008 had there were some delays in allotting loans or 
+perhaps that year had the highest amount of listings. So, Lets take a look at 
+how many loans were approved for the different years
+
+```{r fig.height=4, fig.width=5}
+qplot(data=df,x=LoanCreationYear)+geom_bar()
+```
+
+I would have expected similar numbers for all the years, but it was unexpected
+to see a dip in 2009 and 2010 and a high number of loans in 2008, So I explored 
+the borrowerAPR trend to see if there were fewer loans applied for because of a 
+higher APR.
+
+```{r fig.width=5, fig.height=6}
+p1 <- qplot(data=df,x=LoanCreationYear,y=BorrowerRate)+geom_boxplot()
+p2 <- qplot(data=df,x=LoanCreationYear)+geom_bar()
+grid.arrange(p1,p2,nrow=2)
+```
+
+#### APR Trends
+
+As can be seen in the boxplot there was a rising trend in APR between 
+2007 - 2011, and then it fell in 2012 and the trend continued until 2014. 
+I would have expected the count (Number of applicants and hence Loan approvals) 
+to be highest in 2014, but it could be that this data is not complete for 2014. 
+So, it is not clear what caused the dip in counts in 2009 yet.
+
+I could have extracted the month, but a quick and dirty sorting followed by tail,
+shows me that 2014 data ends in March, while 2013 data is complete.
+
+```{r echo=TRUE}
+tail(sort(unique(df[df$LoanCreationYear=="2013","LoanOriginationDate"])))
+tail(sort(unique(df[df$LoanCreationYear=="2014","LoanOriginationDate"])))
+```
+
+So if we had the full 2014 data, we could have inferred, whether the loan 
+requests were lower due to higher APR rates in 2009-2011. I tried to see what 
+could have cause the high loans in 2013 and if it correlates with APR, so I 
+chose a narrower credit grade A and did the following plot: 
+
+```{r fig.width=5}
+p1 <- qplot(data=subset(df,CreditGrade=="A"),x=LoanCreationYear,y=BorrowerRate)+
+  geom_boxplot()
+p2 <- qplot(data=subset(df,CreditGrade=="A"),x=LoanCreationYear)+geom_bar()
+grid.arrange(p1,p2,nrow=2)
+```
+
+The above plots reveal something unexpected about the CreditGrade. It looks 
+like only in 2006, 2007, 2008 there were users with CreditGrade A who were 
+approved. That is unexpected. Why? 
+
+Lets look at this plot for the different Credit Grades separately.
+
+```{r fig.width=7,fig.height=4}
+#Lets Facet wrap this plot with Credit Grade.
+#qplot(data=df,x=LoanCreationYear,y=BorrowerRate)+geom_boxplot()+facet_wrap(~CreditGrade)+
+#  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+ggplot(df,aes(x=LoanCreationYear,y=BorrowerAPR))+geom_boxplot(aes(fill=CreditGrade))+
+  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+#Lets investigate LoanStatus for the available Credit Grades
+dfcg <- subset(df,CreditGrade %in% c("AA","A","B","C","D","E"))
+ggplot(dfcg,aes(x=CreditGrade))+geom_bar(aes(fill=LoanCreationYear),position="dodge")+
+  ggtitle("Frequency dist. of CreditGrade")+
+   theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+It looks like the CreditGrade is not available for data from 2010 onwards. 
+Lets look into this later. But to answer our question, the maximum loans were 
+approved in 2008, which agrees with the previous plot which shows that the 
+BorrowerAPR was lowest in that year, and in 2009 a very small fraction of C 
+loans were approved. 
+
+Lets now plot the loanStatus for data which have the credit Grades, ie. prior 
+to year 2010.
+
+```{r fig.height=3, fig.width=7}
+p <- ggplot(dfcg,aes(x = LoanStatus))
+p + geom_bar(position = "dodge",aes(fill = LoanCreationYear,
+                                  y = (..count..)/sum(..count..)))+
+    ggtitle("Density for LoanStatus for Different Years")+
+  scale_fill_brewer(palette="Spectral")+ 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+This data shows that about 30% of the loans are completed in 2007, while 10% and 
+4% are not. This number didn't look right. So I had to calculate density by a 
+different method.
+
+The following references gave another method - 
+https://github.com/tidyverse/ggplot2/issues/2051
+https://stackoverflow.com/questions/39878813/r-ggplot-geom-bar-meaning-of-aesgroup-1
+```{r fig.width=7,fig.height=3}
+p + geom_bar(aes(y =..prop..,group = LoanCreationYear,fill = LoanCreationYear),
+             position = "dodge") + scale_fill_brewer(palette="Spectral")
+```
+
+The bar chart now shows the correct proportions. For 2005, all loans are completed. 
+For 2007, about 62.5% of loans were completed, 25% were charged off and about 
+12.5% defaulted as can be read off from the plot. Similar inferences can be 
+drawn for the other years.
+
+We also see the proportion of LoanStatuses as a Pie-Chart for all the years,
+prior to 2009. We will do the same including the years later than 2009 in a 
+later section.
+
+
+```{r}
+
+mytab <- as.data.frame(table(dfcg$LoanStatus)) 
+mytab <- mytab[mytab$Freq>0,]
+mytab$Var1 <- factor(mytab$Var1)
+slices <- mytab[,2]
+lbls <- mytab[,1]
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) # add percents to labels 
+lbls <- paste(lbls,"%",sep="") # ad % to labels 
+pie(slices,labels = lbls, col=rainbow(length(lbls)),
+    main="Pie Chart of LoanStatus",radius=1.0)
+
+```
+```{r echo=TRUE}
+"The proportions can be seen here :"
+
+lbls
+
+```
+
+Now, lets do a bar chart and look at loanstatus for all data
+
+```{r fig.height=4, fig.width=6}
+
+p <- ggplot(df,aes(x=LoanStatus))
+p + geom_bar() + theme(axis.text.x=element_text(angle=80,vjust=0.5))
+```
+
+It looks like there are more categories of LoanStatuses for years after 2008.
+Lets look at the variable LoanCurrentDaysDelinquent
+and do it separately for the users with no allotted CreditGrade, and those who 
+have a CreditGrade and view the LoanStatus Categories for the two datasets.
+
+```{r fig.height=3, fig.width=5}
+
+qplot(subset(df,LoanCurrentDaysDelinquent!=0)$LoanCurrentDaysDelinquent)+
+  ggtitle("Non-zero Delinquent days(All data)")+xlab("Delinquent Days")+
+  theme(plot.title = element_text(size = 10))
+'Notice the two strange peaks. Lets look into this further'
+
+```
+```{r fig.height=3, fig.width=5}
+'Plot Delinqent days for the entire dataset vs only those prior to 2008 and 
+facet it with LoanStatus'
+
+df$LoanStatus <- gsub("Past Due","PD",df$LoanStatus)
+df$LoanStatus <- gsub("days","d",df$LoanStatus)
+
+sd <- subset(df,LoanCurrentDaysDelinquent!=0)
+sd1 <- subset(dfcg,LoanCurrentDaysDelinquent!=0)
+
+#ggplot(data=sd1,aes(x=LoanCurrentDaysDelinquent))+
+#  facet_wrap(~LoanStatus, ncol=4)+geom_histogram()+xlim(c(0.0,2000))+
+#  ggtitle('Prior to 2008')
+
+#Resubmission
+ggplot(data=sd1,aes(x=LoanCurrentDaysDelinquent))+
+  geom_histogram(aes(fill=LoanStatus))+coord_cartesian(xlim=c(0.0,4000))+
+  ggtitle("Before 2009")+
+   scale_fill_brewer(palette="Accent")+theme(legend.text=element_text(size=8))
+
+sd2 <- subset(sd,CreditGrade=="")
+
+#ggplot(data=sd2,aes(x=LoanCurrentDaysDelinquent))+geom_histogram()+
+# facet_wrap(~LoanStatus)
+#  xlim(c(0.0,2000))+ggtitle("After 2009 for data with no CreditGrades")
+
+#Resubmissoin
+ggplot(data=sd2,aes(x=LoanCurrentDaysDelinquent))+
+  geom_histogram(aes(fill=LoanStatus),colour="white")+
+  xlim(c(0.0,2000))+ggtitle("After 2009")+
+   scale_fill_brewer(palette="Accent")+theme(legend.text=element_text(size=8))
+
+```
+
+We notice the following things :
+We see unexpectedly two different distributions for before and after 2009.
+Before 2008, there are two peaks, Deliquency of about 2000 
+days, (Chargedoff) and 500 days(Defaulted). while after 2008, 
+the peak for charged-off data is lower, which probably implies a stricter
+criterion of when a loan is classified as Charged-. Typically, loans
+which default by >120 days fall in the Defaulted category, while after that,
+when there is no expectation of return, it is Chargedoff.
+
+The plots above show how the LoanStatus relates to LoanCurrentDaysDelinquent. 
+Since these two variables are closely related, I can use the LoanStatus from 
+now on. Unexpectedly, the PastDues (1-15), and (16-30) dont seem to have any 
+data, but a closer look shows the statistics is very low. See the plots below :
+
+```{r fig.width=6,fig.height=2}
+#The following have really small number of events so they dont show up in the 
+#facet_wrap'
+p1 <- qplot(df[df$LoanStatus=="PD (1-15 d)",
+               "LoanCurrentDaysDelinquent"])+xlab("PD(1-15 d)")
+p2 <- qplot(df[df$LoanStatus=="PD (16-30 d)",
+               "LoanCurrentDaysDelinquent"])+xlab("PD(16-30 d)")
+grid.arrange(p1,p2,ncol=2)
+```
+
+#### Transform the LoanStatus - Combine Past-Dues into Delinquent Category. 
+
+Since the past-dues are a very small fraction, lets combine them into a 
+new "Delinquent" category and see the proportions in a pie-chart.
+
+```{r}
+mytab <- as.data.frame(table(df$LoanStatus)) 
+drows <- grep("PD",mytab[,1])
+nsave <- sum(mytab[c(drows),2]) #Add all Delinquent Accounts
+mytab1 <- mytab[-c(drows),] #Remove old columns of PastDue and Cancelled accounts
+rownames(mytab1) <- NULL #Reset Row Numbers or you get the old row numbers
+mytab1$Var1 <- factor(mytab1$Var1)
+mytab1$Var1 <- as.character(mytab1$Var1) #Convert to character
+mytab1$Var1 
+mytab1$Var1[6] <- "FPI" # Change long name to short
+mytab1[7,] <- c("Delinquent",nsave)
+
+#Pie Chart of LoanStatus
+slices <- as.numeric(mytab1[,2])
+lbls <- mytab1[,1]
+pct <- round(slices/sum(slices)*100)
+alllbls <- lbls
+#Get the non-zero proportions only : 
+ipct <- which(pct!=0)
+newpct <- pct[c(ipct)]
+newlbls <- lbls[c(ipct)]
+slices <- slices[c(ipct)]
+lbls <- paste(newlbls, newpct) # add percents to labels 
+lbls <- paste(lbls,"%",sep="") # add % to labels 
+pie(slices,labels = lbls,
+    main="Pie Chart of LoanStatus",radius=0.9,col=terrain.colors(length(lbls)))
+
+```
+```{r echo=TRUE}
+
+"Pie chart proportions :"
+alllbls
+
+```
+
+One can see that the "Cancelled"", "FPI" are close to 0, so don't appear in the
+pie chart as I removed them for the sake of clarity. Create a new Category
+NewLoanStatus and combine the "Pastdues","Cancelled" and "Defaulted" into 
+"Delinquent" and others into "InGoodStanding"
+
+```{r echo=TRUE}
+#make new values and put all the PastDue Accounts > 61 days as "Delinquent" 
+#and others in "Goodstanding" as below
+df$NewLoanStatus <- as.character(df$LoanStatus)
+
+dfs <- subset(df,!is.na(BorrowerAPR))
+
+dfs$NewLoanStatus[(dfs$LoanStatus == "Cancelled" |
+                  dfs$LoanStatus == "Defaulted" |
+                  dfs$LoanStatus == "PD (31-60 d)" |
+                  dfs$LoanStatus == "PD (61-90 d)" |
+                  dfs$LoanStatus == "PD (91-120 d)" |
+                  dfs$LoanStatus == "PD (>120 d)")] <- "Delinquent"
+
+dfs$NewLoanStatus[(dfs$LoanStatus == "Current" |
+                dfs$LoanStatus == "PD (1-15 d)" |
+                dfs$LoanStatus == "PD (16-30 d)")] <- "InGoodStanding"
+
+'Delinquent Loans are most likely to Default or have to be chargedoff.'
+'Create a new dataframe dfs and transform the LoanStatus into these two new variables'
+
+```
+
+### Original Loan Amount and Loan Status
+
+#### Does the OriginalLoanAmount have a bearing on the loanstatus?
+
+```{r fig.width=8, fig.height=5}
+dfs$NewLoanStatus <- gsub("FinalPaymentInProgress","FPI",dfs$NewLoanStatus)
+ggplot(dfs,aes(x=LoanOriginalAmount))+geom_density(aes(fill=NewLoanStatus),alpha=0.5)+
+  facet_wrap(~NewLoanStatus)+theme(axis.text.x=element_text(angle=70,vjust=0.7))
+```
+
+#### Do higher loan amounts have a higher probability of defaulting?
+
+Most of the chargedoff loans lie below a certain amount, but that is true for 
+other statuses as well. 
+
+From the densities, we might think that there is equal probability of a loan 
+being charged off or completed regardless of the loan amount, as the shapes 
+are very similar and the peaks are about the same height, however there are 
+loans which are in progress which might get eventually paid off and also loans 
+in good standing would probably get paid off as well. So, we can also combine 
+these two categories into "GoodLoan" and the rest as a "BadLoan" and then 
+compare again. I would have expected that higher loan amounts have a bigger 
+chance of being defaulted in some way. Create another category and
+combine the "Chargedoff and Delinquent Loans" into a "Bad Loan" and others
+like "Current","Past Due (1-15 days)","Past Due (16-30 days)",
+"FinalPaymentInProgress","Completed" into a "GoodLoan"
+
+
+```{r  echo=TRUE}
+
+cloangood <- c("InGoodStanding","Completed","FPI")
+
+#Also combine the Charged off and Delinquent into "BadLoan"
+cloanbad <- c("Chargedoff","Delinquent")
+dfs$NewLoanStatus2[dfs$NewLoanStatus %in% cloangood] <- "GoodLoan"
+dfs$NewLoanStatus2[dfs$NewLoanStatus %in% cloanbad] <- "BadLoan"
+```
+```{r fig.height=4, fig.width=6}
+ggplot(dfs,aes(x=LoanOriginalAmount))+geom_density(aes(fill=NewLoanStatus2),
+      alpha=0.5)+facet_wrap(~NewLoanStatus2)
+
+```
+
+So, I made two categories of Loans : GoodLoans and BadLoans. The criteria can 
+be seen as above.
+
+Now, we see a different scenario! We see that Loan amounts of around 10000, 
+15000,20000 have a greater likelihood to be paid off. But unexpectedly for 
+loans higher than 20000, it has a similar chance of being a Bad loan or a 
+GoodLoan. Also, one can see that smaller loan amounts (<5000) have a higher 
+likelihood of being bad loans and being defaulted in some way.
+
+### How is the APR rate affected by the Credit Score?
+I explore the relation between APR and CreditScore in the following:
+
+```{r fig.width=8, fig.height=4}
+dfs$MeanCreditScore <- (dfs$CreditScoreRangeLower+dfs$CreditScoreRangeUpper)/2.0
+
+#Plot of BorrowerAPR vs CreditGrade
+ggplot(dfs,aes(x=CreditGrade,y=BorrowerAPR))+
+  geom_boxplot(aes(fill=LoanCreationYear))
+```      
+
+The boxplot line in the middle is the median value. So one can see that the 
+Borrower APR becomes higher as the CreditGrade worsens, but there are outliers 
+(indicated by the points) which lie beyond the whiskers (above 95% C.L.). So, 
+some people with low credit still have low APR's and there is some overlap of 
+APR's in each category. For the overlaps,factors other than the CreditGrade 
+contributed to lowering the APR. Also, for 2006-2007 the APR is very similar, 
+but it is higher for 2008. From 2009 onwards, we don't have CreditGrades. 
+
+So I decided to investigate the relationship between CreditScore and CreditGrade
+
+```{r echo=TRUE, fig.width=5,fig.height=4}
+ggplot(dfs,aes(y=CreditScoreRangeLower,x=CreditGrade))+geom_boxplot()+
+  coord_cartesian(ylim=c(400,900))+
+    scale_y_continuous(breaks=seq(400,900,40))
+
+#Lets get the maximum and minimum of each CreditGrade
+dfcg_1 <- subset(dfs,!is.na(CreditScoreRangeLower))
+grades <- sort(unique(dfcg_1$CreditGrade))
+grades
+
+mins <- length(grades)
+maxs <- length(grades)
+
+for ( i in 1:length(grades)) {
+  mins[i] <- min(dfcg_1$CreditScoreRangeLower[dfcg_1$CreditGrade==grades[i]])
+  maxs[i] <- max(dfcg_1$CreditScoreRangeLower[dfcg_1$CreditGrade==grades[i]])
+}
+```
+```{r}
+'These are the grades and their corresponding credit score ranges:'
+
+data.frame(grades,mins,maxs)
+
+
+```
+
+It looks like 104 users have a CreditGrade but don't have a CreditScore. My 
+NA count variable also shows that. So, most likely other factors were used for 
+their CreditGrade. The first plot is used just to get an idea of how the range
+looks like and it is verified with the code. 
+
+The values for the creditscore range can be read off the boxplot but I also
+write a small code to show that it confirms the plot. 
+ 
+I use the above relation between CreditScore and Grade, and assign these Grades 
+to the unknown Grades as well and create a "NewCreditGrade". I understand that 
+the grading methodology may differ for the next years, but in case it does not 
+change this is a judicious choice to make. Now, we can look at how
+the Borrower APR and mean varies with the Credit Score.
+
+```{r fig.width=7,fig.height=3}
+dfs_0 <- subset(dfs,!is.na(MeanCreditScore))
+dfs$NewCreditGrade <- dfs$CreditGrade
+
+var <- unique(dfs_0$CreditGrade)
+var <- sort(var)
+var 
+
+for (i in 2:length(var)) {
+  n1=min(unique(dfs_0$MeanCreditScore[dfs_0$CreditGrade==var[i]]))
+  n2=max(unique(dfs_0$MeanCreditScore[dfs_0$CreditGrade==var[i]]))
+  dfs$NewCreditGrade[dfs$NewCreditGrade=="" 
+                     & dfs$MeanCreditScore>=n1 
+                     & dfs$MeanCreditScore<=n2] <- var[i]
+}
+
+ggplot(dfs,aes(x=NewCreditGrade,y=BorrowerAPR))+geom_boxplot(aes(fill=LoanCreationYear))+
+  theme(legend.title=element_text(size=11.2),legend.text = element_text(size=8.2)) 
+```
+
+Now we have all CreditScores divided into different ranges. There are two 
+additional grades HR and NC till 2007. NC is the category which has no 
+credit information. Also, we can visualize the credit grades
+and scores very nicely in the following color coded plot : 
+
+```{r fig.height=3, fig.width=7}
+dfs_1 <- subset(dfs,!is.na(OpenCreditLines))
+
+#Plot the upper and lower CreditScore Ranges vs the newCreditGrade, just
+#to visualize the relationship between the two
+#Get a Palette
+pal <- palette(rainbow(9))
+
+ggplot(dfs_1,aes(x=CreditScoreRangeLower))+
+  geom_bar(aes(fill=NewCreditGrade),alpha=0.5)+
+  scale_x_continuous(breaks=seq(500,900,20))+
+  scale_fill_manual(values=pal)+
+  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+
+```
+
+
+#BorrowerAPR vs CreditGrade
+Now lets do the BorrowerAPR with the CreditGrade plot again.
+
+```{r fig.height=4}
+
+ggplot(data = dfs, aes(x = BorrowerAPR)) +
+  geom_histogram(binwidth = 0.01,aes(x=BorrowerAPR,y=..density..),fill=2) +
+  scale_x_continuous(breaks=seq(0.0,0.5,0.05)) +
+  facet_wrap(~NewCreditGrade,ncol=3)+
+  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+```
+
+One can see that as the credit Grade goes lower, the borrowerAPR increases.
+
+The histograms also show some interesting features. We can see that the Borrower 
+APR mean is lower for Grades A,AA and B, as it is shifted to the left. Some 
+peaks begin to appear for Creditgrades B,C,D,E,HR,NC at around 0.35, which 
+shows that a large number of people get APR's around that value.
+
+```{r fig.width=7,fig.height=3}
+
+"Lets plot the Means and Standard Deviation vs Credit Grade"
+gp1 <- group_by(dfs,NewCreditGrade)
+#I specifically call dplyr::summarise as it conflicts with plyr, which I also use
+dfgp1 <- dplyr::summarise(gp1,apr_med = median(BorrowerAPR),
+                          apr_mean=mean(BorrowerAPR),apr_sd=sd(BorrowerAPR),n=n())
+
+#Plot the mean APR and error on Mean vs NewCreditGrade
+ggplot(data = dfgp1, aes(x=NewCreditGrade,y=apr_mean)) + geom_point()+
+  geom_errorbar(aes(ymin =apr_mean-(apr_sd/sqrt(n-1)), ymax = apr_mean+
+(apr_sd/sqrt(n-1))))
+
+```
+
+Here, we plot the mean APR and error on Mean vs CreditGrade and we can do a  
+similar plot vs. CreditScore. Note that Grades AA - HR are in descending order 
+of best to worst credit grades. So the trend is opposite in the two plots. 
+The two plots below are similar but the top one shows the distribution of points 
+with the mean superimposed, while the second one shows the mean with standard 
+error for each bin, calculated as mean/sqrt(n-1) where n is the number of counts 
+in each bin.
+
+```{r fig.width=7,fig.height=3}
+
+'BorrowerAPR vs CreditScoreRangeLower'
+ggplot(dfs, aes(CreditScoreRangeLower,BorrowerAPR)) + 
+  geom_point(color="red",alpha=1/30,position = position_jitter(h=0.1,w=0.1))+
+  geom_line(stat='summary',fun.y=mean, color="blue",size=1) +xlim(300.0,1000.0)
+
+gp_scr <- group_by(dfs,CreditScoreRangeLower)
+dfnew <- dplyr::summarise(gp_scr,apr_mean=mean(BorrowerAPR),
+                   apr_sd=sd(BorrowerAPR),n=n())
+#Plot the mean APR and error on Mean vs CreditScoreRangeLower - Plot2 b
+plot1b <- ggplot(data = dfnew, aes(x=CreditScoreRangeLower,y=apr_mean)) 
+plot1b + geom_point() + xlim(250.0,1000.0) + geom_smooth() +
+  geom_errorbar(aes(ymin =apr_mean-(apr_sd/sqrt(n-1)),ymax = apr_mean+
+                      (apr_sd/sqrt(n-1))))
+
+```
+
+One can see that the mean APR remains slightly above 0.25 and varies upto a 
+maximum of 0.3 below a score of 500, but between 500-640 it can reach a maximum 
+of 0.38, with a good fraction of people ending up with high APR's as can seen 
+from the size of the point. The mean APR remains fairlt constant upto 640, 
+and then starts dropping. The upper scores remain largely constant at about 
+0.35 and a large group of people get that amount but there is a fair 
+distribution for lower amounts as well. For higher Creditscores, more 
+and more people start getting lower APR's pulling the mean score down.
+
+## Credit Score and factors which influence them.
+I study here some variables which influence the CreditScore.Since there 
+are a large number of variables, I first looked at their correlations, 
+and study those which have a high correlation with the creditscore, which
+would imply that they influence the creditscore the most. 
+
+```{r}
+
+#Reference for this function : Get the most highly correlated variables
+#http://little-book-of-r-for-multivariate-analysis.readthedocs.io/en/+latest/src/multivariateanalysis.html
+#I added two more lines to remove the diagonal elements, which are input as 0, 
+#to avoid showing them
+
+mosthighlycorrelated <- function(mydataframe,numtoreport)
+{
+  # find the correlations
+  cormatrix <- cor(mydataframe)
+  # set the correlations on the diagonal or lower triangle to zero,
+  # so they will not be reported as the highest ones:
+  diag(cormatrix) <- 0
+  cormatrix[lower.tri(cormatrix)] <- 0
+  # flatten the matrix into a dataframe for easy sorting
+  fm <- as.data.frame(as.table(cormatrix))
+  
+  # assign human-friendly names
+  names(fm) <- c("First.Variable", "Second.Variable","Correlation")
+  fm$Correlation[fm$Correlation==0] <- NA
+  fm <- na.omit(fm)
+  # sort and print the top n correlations
+  head(fm[order(abs(fm$Correlation),decreasing=T),],n=numtoreport)
+}
+
+#Lets choose some variables and study their correlations:
+vars <- c("TotalCreditLinespast7years","InquiriesLast6Months",
+          "CurrentDelinquencies","PublicRecordsLast10Years","MeanCreditScore")
+#Some people who have creditscores may not have these so we remove them first.
+
+temp <- na.omit(dfs[,vars])
+
+mosthighlycorrelated(temp,16)
+```
+
+CurrentDelinquencies, InquiriesLast6Months,PublicRecordsLast10Years are the most 
+correlated to the MeanCreditScore. Also, these three variables have a weak 
+correlation with each other about 15-17%. Lets continue to study other 
+variables. I study these variables separately based on their NA counts.
+
+```{r}
+vars <- c("DelinquenciesLast7Years","TotalInquiries","AvailableBankcardCredit",
+          "TotalTrades","TradesOpenedLast6Months","CurrentCreditLines",
+          "OpenCreditLines","PublicRecordsLast12Months","RevolvingCreditBalance",
+          "BankcardUtilization","EmploymentStatusDuration","AmountDelinquent",
+          "MeanCreditScore")
+
+temp <- na.omit(dfs[,vars])
+
+mosthighlycorrelated(temp,10)
+
+```
+
+The following pairs are most correlated to the MeanCreditScore:
+
+AvailableBankcardCredit MeanCreditScore   0.4753080
+BankcardUtilization   MeanCreditScore  -0.4247067
+
+Some of these variables are highly correlated such as these below:
+CurrentCreditLines	OpenCreditLines	0.9590059
+TotalTrades      CurrentCreditLines   0.6804169
+TotalTrades         OpenCreditLines   0.6336394
+
+So, I choose to study AvailableBankCardCredit, BankCardUtilization, 
+CurrentCreditLines, and TotalTrades. What about RevolvingCreditBalance?
+
+```{r}
+vars <- c("RevolvingCreditBalance","MeanCreditScore")
+temp <- na.omit(dfs[,vars])
+cor(temp)
+
+vars <- c("DebtToIncomeRatio","MeanCreditScore")
+temp <- na.omit(dfs[,vars])
+cor(temp)
+```
+
+I expected to see the DebtToIncomeRatio have a big impact on the CreditScore, 
+but this shows a very weak Correlation. I find this unexpected. But I would 
+like to still study it. And also, study the RevolvingCreditBalance. So finally, 
+I choose the following variables to plot - 
+
+CurrentDelinquencies,
+InquiriesLast6Months,
+PublicRecordsLast10Years,
+AvailableBankCardCredit,  
+BankCardUtilization,
+CurrentCreditLines,
+TotalTrades,
+DebtToIncomeRatio,
+RevolvingCreditBalance
+
+I first plot the plots here and then discuss them below:
+```{r fig.width=6,fig.height=3}
+
+temp <- subset(dfs,CurrentDelinquencies>0)
+
+ggplot(temp,aes(x=CurrentDelinquencies,fill=NewCreditGrade))+
+  geom_density(alpha=1/5)+xlim(0.0,10.0)
+
+var <- "AvailableBankcardCredit"
+var2 <- "NewCreditGrade"
+
+temp <- dfs
+#Since there is a big spike at 0, lets look at just the non-zero values:
+temp <- subset(dfs,var>0)
+ggplot(temp,aes_string(x=var,fill=var2))+geom_histogram(alpha=1/2)+
+        scale_y_log10()
+
+library(MASS) # to access Animals data sets
+library(scales) # to access break formatting functions
+
+#Transforming to log variables to view separation better
+ggplot(temp,aes(x=AvailableBankcardCredit,fill=NewCreditGrade))+
+  geom_density(alpha=1/5)+
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                     labels = trans_format("log10", math_format(10^.x)))
+
+#To view this better lets just look at two credit Grades : AA and D
+#temp$NewCreditGrade <- as.character(temp$NewCreditGrade)
+#temp <- subset(temp,NewCreditGrade %in% c("A","C","HR"))
+
+#Convert to %age before using geom_density because the values are in fractions
+temp$BankcardUtilization = temp$BankcardUtilization*100
+ggplot(temp,aes(x=BankcardUtilization,fill=NewCreditGrade))+
+  geom_density(alpha=1/5)+xlim(0.0,200.0)
+
+
+```
+
+One can see quite a bit of shape difference of the variablea across credit 
+ranges.
+For both AvailableBankCredit and Bankcardutilization. This tells us that these 
+two variables would affect the credit score considerably. One can see very 
+striking differences between the different credit grades for these variables. 
+My perception was that everyone would have a bank card, but it seems this 
+utilization is much lower for A, and AA, while it rises for the lower Credit 
+Grades. Also the available bank credit is much higher for the higher credit 
+grades. CurrentDelinquencies peak towards 0, but rise for the lower credit 
+grades.
+
+Lets investigate the OpenCreditLines. I first did a geom_boxplot and then I 
+looked at this vs. CreditScore instead of Credit Grade because it allows me to 
+use the summary feature in geom_line. These plots are discussed below :
+
+```{r  fig.width=7, fig.height=3}
+#How do number of Open Credit lines affect Credit Grade and CreditScore - Plot1.
+#Box plot shows a large number of outliers for the credit grade. The mean scores
+#are fairly close. Lets group and plot some stats.
+
+dfs_1 <- subset(dfs,!is.na(OpenCreditLines))
+ggplot(dfs_1,aes(x=CreditGrade,y=OpenCreditLines))+geom_boxplot()
+
+#Lets group by CreditScoreRangeLower
+gp1 <- dfs_1 %>% group_by(CreditScoreRangeLower)
+gp1 <- gp1 %>% dplyr::summarise(crsmean = mean(OpenCreditLines),
+                   crsmed = median(OpenCreditLines),nc=n())
+gp1 <- arrange(gp1,CreditScoreRangeLower)
+
+
+ggplot(dfs_1,aes(x=CreditScoreRangeLower,y=OpenCreditLines)) + 
+   geom_count(alpha=1/4,color='red')+
+  geom_line(stat='summary',fun.y=mean,color='blue',size=1.0)+
+  geom_line(stat='summary',fun.y=quantile, fun.args=list(probs=0.1),
+            linetype=2,color='blue',size=1.)+
+  geom_line(stat='summary',fun.y=quantile, fun.args=list(probs=0.9),
+            linetype=2,color='blue',size=1.)+
+  geom_line(stat='summary',fun.y=quantile, fun.args=list(probs=0.5),
+            color='red',size=1.)+
+  scale_x_continuous(breaks = seq(500,900,20),limits=c(500,900))+
+  scale_y_continuous(limits=c(0,20),breaks=seq(0,20,2))+
+  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+```
+
+This plot shows that if you have larger open credit lines you need to have 
+higher creditscores. If you have high creditscores > 700 or so, you can on 
+an average have 9-10 creditlines and still be approved for a loan. However 
+it may affect the loan APR. For 90% of people min. acceptable credit score is 
+above 750 if number of credit lines >=8. But the median is slightly lower. 
+The mean varies between scores of 520 - 680, steadil rising, but 
+plateaus at ~680 for > 8 open credit lines. So once you have beyond 8 open 
+CreditLines your acceptable credit score, is largely independant of this value. 
+Also, 90% of people have open Credit lines between 3-14 for credit ranges 
+680-800. Beyond 800, the statistics is lower so not much can be inferred.
+
+## Employment Status, Income Levels and Credit Scores.
+
+```{r fig.height=3,fig.width=6}
+#How does the CreditScore vary with EmploymentStatus
+var <- c("EmploymentStatus","CreditScoreRangeLower","CreditScoreRangeUpper")
+
+ggplot(dfs,aes_string(x=var[1])) + geom_bar(aes(y = (..count..)/sum(..count..)))+
+  theme(axis.text.x=element_text(angle=60,vjust=0.6))
+#Most are employed about 60%. One of the categories is blank and not available
+
+ggplot(dfs,aes_string(x=var[1])) + 
+  geom_boxplot(aes_string(y=var[2]),fill=4,alpha=0.5,color=4)+
+  geom_boxplot(aes_string(y=var[3]),fill=2,alpha=0.5,color=2)+
+  scale_y_continuous(limits = c(500,950))+
+  theme(axis.text.x=element_text(angle=60,vjust=0.6))
+```
+
+This was unexpected as this plot shows that loan is approved for lower credit 
+scores as well, if the person does not make his employment status available. 
+90% of employed and full time people have credit scores around 750 while
+part-timers require lower credit scores.
+
+###DebtToIncome Ratio
+I plot the DebtToIncomeRatio (DtoI) in the following plots. I convert it
+to %age first, because the density plots otherwise don't show the correct
+values. I call this variable "DToIPercent"
+
+```{r fig.height=5,fig.width=7}
+#ggplot(data=dfs,aes(x=DebtToIncomeRatio))+
+#  geom_density(alpha=0.5,aes(fill=NewCreditGrade))+scale_x_continuous(limits=c(0.0,1.0))+
+#  facet_wrap(~NewCreditGrade)
+
+#Convert to % so that density is from 0-1
+
+dfs$DToIPercent <- dfs$DebtToIncomeRatio*100
+```
+```{r  fig.height=5,fig.width=8}
+
+ggplot(data=dfs,aes(x=DToIPercent))+
+  geom_density(alpha=0.5,aes(fill=NewCreditGrade))+xlim(0.0,100.0)
+
+ggplot(data=dfs,aes(x=NewCreditGrade,y=DToIPercent))+
+  geom_boxplot(aes(fill=NewLoanStatus))+coord_cartesian(ylim=c(0.0,50))
+
+ggplot(dfs,aes(x=NewCreditGrade,y=DToIPercent))+
+  geom_boxplot(aes(fill=IsBorrowerHomeowner))+ylim(0.0,50)
+
+#ggplot(data=dfs,aes(x=NewCreditGrade,y=DToIPercent))+
+#  geom_boxplot()+coord_cartesian(ylim=c(0.0,0.5))+facet_wrap(~LoanStatus, ncol=4)
+
+dfsa <- subset(dfs,!is.na(MeanCreditScore) & !is.na(OpenCreditLines))
+ggplot(dfsa,aes(x=MeanCreditScore,y=DToIPercent))+
+  geom_count(aes(color=MeanCreditScore))+facet_wrap(~EmploymentStatus, ncol=4)+
+  ylim(0.0,100.0)+theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+
+#This shows that if you are a Homeowner you are allowed slightly higher
+#DToIPercent
+
+```
+
+AA has the lowest DtoI for "Completed" Status. The median DtoI are almost same for 
+charged-off and completed loans. It seems DtoI does not matter much for which loans are 
+charged-off vs Completed. But it does mtter for those that defaulted, as for 
+each of the categories the DtoI ratio is lower for Completed vs. Defaulted 
+except for categories E, and NC. 
+
+The DtoI is between 15 - 25% as (See the IQR for A,B,C,D) and 
+slightly lower for A,E,HA categories. The mediam DtoI ratio is slightly higher 
+for Homeowners vs. Non Homeowners.
+
+### IncomeLevel,Homeowner, CreditScore
+
+The IncomeRange is categorical and I transform them to numbers, such that 
+the lowest number represents the lowest or No Income and increasing numbers
+indicated increasing income ranges.
+
+```{r echo=TRUE}
+"These are the income ranges"
+unique(df$IncomeRange)
+
+```
+
+```{r echo=TRUE}
+"Here, I map the Income Categories to Income Levels. I wanted to arrange 
+it such that 100,000+ is the last category so I created my own levels. 
+Map these ranges from 1-8"
+fac <- factor(c("Not displayed","Not employed","$0","$1-24,999","$25,000-49,999",
+                "$50,000-74,999","$75,000-99,999","$100,000+")) 
+```
+```{r }
+dfs$IncomeLevel <- as.character(dfs$IncomeRange)
+
+require(plyr)
+dfs$IncomeLevel <- plyr::mapvalues(dfs$IncomeLevel,fac,mapLevels(fac)) 
+
+#This creates a list so unlist it
+dfs$IncomeLevel <- unlist(dfs$IncomeLevel)
+
+dfsa <- subset(dfs,MeanCreditScore>100)
+
+dfsa$IncomeLevel <- as.character(dfsa$IncomeLevel)
+```
+```{r fig.height=4,fig.width=6}
+
+#ggplot(data=dfsa,aes(x=IncomeLevel,y=BorrowerAPR))+geom_count(alpha=1/10, color="red")
+
+ggplot(data=dfsa,aes(x=IncomeLevel,y=BorrowerAPR))+
+  geom_violin(alpha=0.3,fill="red")
+
+p1 <- ggplot(data=dfsa,aes(x=IncomeLevel,y=BorrowerAPR))+
+  geom_boxplot(aes(fill=IsBorrowerHomeowner))
+p2 <- ggplot(data=dfsa,aes(x=IncomeLevel,y=MeanCreditScore))+
+  geom_boxplot(aes(fill=IsBorrowerHomeowner))
+
+grid.arrange(p1,p2,nrow=2)
+
+```
+```{r fig.height=3,fig.width=4}
+ggplot(dfs,aes(x=dfs$NewCreditGrade,y=dfs$IncomeLevel))+
+  geom_count()+ylim(2.0,8.0)
+
+```
+
+There is a weak dependence of the CreditScore on Income. I had the perception 
+that higher Income groups would have a higher creditscore as well, but this 
+does not seem to be the case. So the reality is different from what I thought. 
+It also shows that Homeowners have higher credit scores as compared to 
+non-homeowners and this is true for all income levels. The borrower APR
+also vary slightly between homeowners and non home-owners and its lower for 
+homeowners, perhaps because they also have higher credit scores.
+
+### TotalTrades, TradesDelinquent, RevolvingCreditBalance
+
+I just show 3 Credit Grades, A, D, and E here :
+
+```{r fig.height=3,fig.width=6}
+colnames(dfs)[grep("TradesNever",colnames(dfs))] <- "TradesNeverDQP"
+
+dfs1 <- subset(dfs,NewCreditGrade=="A" | NewCreditGrade=="D" | 
+                 NewCreditGrade=="E")
+d <- ggplot(dfs1,aes(x=TotalTrades,y=TradesNeverDQP))
+
+d+geom_density_2d(aes(color=NewCreditGrade))+
+  stat_density_2d(aes(fill=..level..),geom="polygon",alpha=1/5)+
+  facet_wrap(~NewCreditGrade)+coord_cartesian(xlim=c(0,50))+
+  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+d+geom_density_2d(aes(color=NewCreditGrade))+
+  stat_density_2d(geom="point",aes(size = ..density..),contour=FALSE,
+                  alpha=1/10,n=20)+
+  facet_wrap(~NewCreditGrade)+coord_cartesian(xlim=c(0,50))+
+  theme(axis.text.x=element_text(angle=60,vjust=0.8))
+
+ggplot(dfs1,aes(x=TradesNeverDQP))+
+  geom_histogram(alpha=1/2,binwidth = 0.08,aes(color=NewCreditGrade,
+                 fill=NewCreditGrade,y=..count../sum(..count..)))+
+  scale_x_continuous(breaks=seq(0.2,1.0,0.2),limits=c(0.2,1.0))
+
+ggplot(dfs1,aes(x=TotalTrades))+
+  geom_histogram(alpha=1/2,binwidth =2,aes(color=NewCreditGrade,
+                  fill=NewCreditGrade,y=..count../sum(..count..)))+
+  scale_x_continuous(breaks=seq(0,50,10),limits=c(0.0,50.0))
+
+```
+
+The 2D density plots show the variation of TotalTrades and TradesNeverDelinquent. 
+This distribution also shows a distinct variation for the different creditgrades 
+and would be useful to distinguish the credit scores. One can see that for 
+Category A, >40% of the people have 80% of Trades never delinquent. Also, the 
+number of trades is lower for Category A. For the E category. 
+
+
+```{r fig.height=4,fig.width=6}
+
+v1 <- "RevolvingCreditBalance"
+v2 <- "PublicRecordsLast12Months"
+
+
+p <- ggplot(dfs1,aes_string(x=v2))
+k1 <- p +geom_bar(aes(y=..prop..,color=NewCreditGrade,fill=NewCreditGrade),
+                  alpha=1/5,position="dodge")
+
+dfs2 <- subset(dfs,PublicRecordsLast12Months>0)
+p2 <- ggplot(dfs2,aes_string(x=v2))
+
+k2 <- p2 +geom_bar(aes(color=NewCreditGrade,fill=NewCreditGrade),
+                   alpha=1/2,position="dodge")+xlim(0,5)
+
+grid.arrange(k1,k2,nrow=2)
+
+#Revolving Credit Balance
+ggplot(dfs1,aes_string(x=v1))+
+  geom_density(aes(color=NewCreditGrade,fill=NewCreditGrade),alpha=1/5)+
+  xlim(0,1e+5)+theme(legend.position = "bottom")
+
+
+```
+
+The PublicRecordsLast12months has some unexpected features. It is the lowest for
+category AA, but is highest for category C and not D&E. It can even go as high 
+as 20, so I set a limit at 5 for better visualization. A small fraction of people 
+have >er1 publicRecord. But if its greater than 1, then in a similar fashion, C 
+is the highest. Also, unexpectedly AA is higher than A. C has highest public 
+records overall.
+
+```{r}
+## Final Plots and Summary
+
+library(gridExtra)
+library(cowplot)
+```
+
+#Plot 1. 
+
+```{r fig.width=7,fig.height=7}
+dfs2 <- subset(dfs,!is.na(CreditScoreRangeLower))
+p1 <- ggplot(dfs2,aes(x=NewCreditGrade,y=BorrowerAPR))+
+  geom_boxplot(aes(fill=LoanCreationYear))
+p2 <- ggplot(dfs2, aes(CreditScoreRangeLower,BorrowerAPR)) + 
+  geom_count(alpha=1/10,color="orange") +  ylab("APR")+
+  geom_line(stat='summary',fun.y=mean,color="red",size=1.0) +xlim(400.0,900.0)+
+  ylab("APR")
+p3 <- plot1b + geom_point() + xlim(400.0,900.0) + geom_smooth() +
+               geom_errorbar(aes(ymin =apr_mean-(apr_sd/sqrt(n-1)),
+                    ymax = apr_mean+(apr_sd/sqrt(n-1))))+
+              ylab("APR_Mean")
+
+grid.arrange(p1,p3,p2,nrow=3,top="Final Plot1 : BorrowerAPR vs 
+             CreditGrade/CreditScore")
+
+```
+
+These plots show that the BorrowerAPR depends on the CreditScore/CreditGrade. 
+
+The boxplot line in the middle is the median value. So one can see that the 
+Borrower APR becomes higher as the CreditGrade worsens, but there are outliers 
+(indicated by the points) which lie beyond the whiskers (above 95% C.L.). So, 
+some people with low credit still have low APR's and there is some overlap of 
+APR's in each category. For the overlaps,factors other than the CreditGrade 
+contributed to lowering the APR. Also, interestingly, the APR's are broader 
+as they rise for different years, which means that there is more variability in 
+the APR in the years after 2008. It could be because more factors were 
+considered in deciding the APR, or there was a change in algorithm, which could 
+have caused this trend. One can see that among the different years, 2006 had the 
+minimum APR's, and it increased until 2009, 2010. APR's then show a decreasing 
+trend from 2011-2014. This happens for all creditgrade categories, except maybe 
+HR and NC.
+
+The second and third sub-plots esentially show the variation of the APR mean. 
+The second sub-plot shows the mean APR and the standard error on the mean, 
+calculated as mean/sqrt(n-1), where n is the number of events in each bin. 
+The third sub-plot shows the distribution of the plots with the mean 
+superimposed. One can see from the sizes of the points how the APR's are 
+distributed.
+
+## Plot 2
+
+```{r fig.height=8,fig.width=8}
+
+#Plot 2
+temp <- subset(dfs,NewCreditGrade %in% c("A","C","E") & NewLoanStatus 
+               %in% c("Chargedoff","Completed","Delinquent","InGoodStanding"))
+
+p1 <- ggplot(temp,aes(x=AvailableBankcardCredit,fill=NewCreditGrade))+
+  geom_density(alpha=0.3)+facet_wrap(~NewLoanStatus,ncol=2)+
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                     labels = trans_format("log10", math_format(10^.x)))
+
+
+p2 <- ggplot(temp,aes(x=BankcardUtilization,fill=NewCreditGrade))+
+  geom_histogram(alpha=0.7,binwidth=0.05)+facet_wrap(~NewLoanStatus,ncol=2,
+  scales="free")+xlim(0.0,1.5)
+
+grid.arrange(p1,p2,nrow=2)
+
+```
+
+
+These plots show the how the BankcardUtilization and the Available Bank Credit 
+balance reflect on the credit score. For the final plot, I choose only 3 credit 
+categories, which are the second-best, one in the middle, and a poor grade. 
+The density plot for "AvailableBandkcardCredit" show variation in shapes for 
+the different credit grades, which make it a powerful variable to distinguish 
+between lendees.I take the log distribution which brings out the variation 
+better. One can see that the
+
+One can see that the C category lens towards the left and more so for E. So,
+The poorer creditgrades tend to have less available bankcredit as compared to 
+the higher grades, while the bank card utilization is more for the poorer grades 
+as compared to the higher grades. Bank Card utilization as it tends more towards 
+the 1.0 value (100% utilization) while the Higher grades tend towards 0. For the
+bad loans, the higher credit grade distribution begins to look similar to the 
+poorer grades.
+
+## Plot 3
+
+```{r fig.width=8}
+p1 <- ggplot(data=dfsa,aes(x=IncomeLevel,y=BorrowerAPR))+
+  geom_boxplot(aes(fill=IsBorrowerHomeowner))+ggtitle("BorrowerAPR vs IncomeLevel")
+p2 <- ggplot(data=dfsa,aes(x=IncomeLevel,y=MeanCreditScore))+
+  geom_boxplot(aes(fill=IsBorrowerHomeowner))+ggtitle("MeanCreditScore vs IncomeLevel")
+
+grid.arrange(p1,p2,nrow=2)
+```
+
+This plot shows the MeanCreditScore and Borrower APR vs the IncomeLevel. 
+The IncomeLevel has been built from IncomeRange and represents the lowest to 
+highest income range. 
+
+Here is the mapping for the levels : 
+fac <- factor(c("Not displayed","Not employed","\$0","\$1-24,999",
+"\$25,000-49,999","\$50,000-74,999","\$75,000-99,999","$100,000+"))
+                
+There is a weak dependance of the CreditScore on Income. I chose this plot, 
+because I had the perception that higher Income groups would have a higher 
+creditscore as well, but this does not seem to be the case. So the
+reality is different from what I thought. It also shows that Homeowners have 
+higher credit scores as compared to non-homeowners and this is true for all 
+income levels. The borrower APR also vary slightly between homeowners and 
+non home-owners and its lower for homeowners, perhaps because they also have 
+higher credit scores.
+
+## Reflection
+The prospser loans dataset is a vast dataset with ~100k observations and 81 
+variables spanning across several years. The general analysis revealed a 
+positive corelation between credit score and borrowing rate. This led to 
+revealing which variables play an important role in the credit score. 
+A correlation study indicated some powerful variables which influence the 
+credit score. Variables such as "Delinquencies", "AvailableBankCardBalance", 
+"Inquiries in last 6 months", and "Public records" can bring down the credit 
+score considerably. However, even with lower credit scores, people do get loans, 
+but it is important to understand the variation of the APR and what one can 
+expect from the loan. 
+
+It was interesting to see the weak correlation between APR/Creditscore with 
+IncomeLevel. This was an indicator that reality can be different from perception 
+and studying the data can reveal trends which we may not think of. Also, 
+"debtToIncome"" ratio did not play a huge role.
+
+The obstacles in this analysis, were to first gain a thorough understanding of 
+the variables, and terminology and general domain knowledge of financial 
+peer-to-peer lending. All the variables looked interesting and relevant, 
+and it was a struggle to determine which variables to analyze, and give priority 
+to. I therefore used the most correlated variables as an indicator of the 
+most powerful influencers and chose them for my study. Since I was not aware of 
+the knitr syntax, it took a while to learn and size the figures correctly.
+
+There are many areas which can be investigated further. I have analysed more 
+than 20 variables, but to uncover correlations between them and to engineer 
+variables which could reveal more powerful ways to build credit grades, would 
+be intersting. I also left the internal prosperdata largely untouched.
+I would have liked to study correlations between the prosper scoring and the 
+credit scores, and how having a prosper loan as well influences the APR.  
+
+Some additional variables such as the Borrower's age and sex could be included. 
+I would like to also explore what caused the dip in the 2009 APR rate and why it 
+picked up again. Needless to say, there must be more information on this in the 
+financial world, and analysing this dataset has sparked my curiosity to know 
+more about this. 
+
+This project uncovered a lot of surprises about the lending world and different 
+visualizations like bars, box-plots, density, 2d_density were needed to glean 
+this information. Financial data is complex and exciting and reveals a lot about 
+the health of its people and nation, which makes it important to gain further
+understanding of it.
+
+## References:
+http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/
+https://www.prosper.com/help/topics/how-to-read-a-loan-listing
+https://www.r-bloggers.com/whisker-of-boxplot/
+https://github.com/tidyverse/ggplot2/issues/2051
+https://stackoverflow.com/questions/39878813/r-ggplot-geom-bar-meaning-of-aesgroup-1
+http://little-book-of-r-for-multivariate-analysis.readthedocs.io/en/latest/src/multivariateanalysis.html
+https://sachsmc.github.io/knit-git-markr-guide/knitr/knit.html
+https://rmarkdown.rstudio.com/r_notebooks.html
+https://yihui.name/knitr/options/
+http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+https://www.r-bloggers.com/palettes-in-r/
+https://blog.equifax.com/credit/how-can-public-records-affect-my-credit-score/

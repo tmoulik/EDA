@@ -1,5 +1,6 @@
 # EDA
 Exploratory data analysis of financial loan data
+Author : Tania Moulik
 
 Use R to explore Prosper Financial loan data.
 

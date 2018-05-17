@@ -63,14 +63,7 @@ n2=ncol(df_orig)
 The data set has 81 variables with 113937 observations for each. I then print 
 out the column names and use glimpse to view the data. 
 
-I just print some of the variables here. 
-(Note : The variables which I choose are talked about later. I am not making a 
-selection here.I am showing the steps that I took, as I did the analysis 
-as required in the project)
-
-For the first look, I print out all column names and a summary of the data. 
-But for the sake of submission, I am printing just a few variables as output. 
-
+Let's print some of the variables here. 
 
 ```{r}
 #df <- df_orig[sample(1:nrow(df_orig), 5000,replace=FALSE),]

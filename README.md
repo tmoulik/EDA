@@ -1,10 +1,12 @@
 # Exploratory Data analysis
 
 Project: Exploratory data analysis of financial loan data
+
 Author : Tania Moulik
+
 Contact: tania.moulik@gmail.com
 
-#Description
+# Description
 I used R to explore Prosper Financial loan data.
 
 This was a project done as part of the Udacity Course and it involved data visualization and analysis of a dataset of your own choice. I chose the Prosper financial loan data.

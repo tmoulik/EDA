@@ -7,9 +7,10 @@ Author : Tania Moulik
 Contact: tania.moulik@gmail.com
 
 # Description
-I used R to explore Prosper Financial loan data.
+In this project I used R to explore Prosper Financial loan data.
 
-This was a project done as part of the Udacity Course and it involved data visualization and analysis of a dataset of your own choice. I chose the Prosper financial loan data.
+This was a project done as part of the Udacity Course and it involved data visualization and analysis of a dataset of one's 
+own choice. I chose the Prosper financial loan data.
 
 Some of the variables explored in this project are :
 

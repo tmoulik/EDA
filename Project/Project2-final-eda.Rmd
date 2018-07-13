@@ -23,11 +23,11 @@ require(RColorBrewer)
 ```
 
 ### Introduction
-In this report, I am analysing the Prosper Loan Data, using a  number of 
-different visualizations which can be categorized as univariate, bivariate 
-and multivariate. A glimpse of the data shows that there are 81 varaibles 
+In this report, I am analyzing the Prosper Loan Data, using a  number of 
+different visualizations which can be categorized as uni-variate, bi-variate 
+and multivariate. A glimpse of the data shows that there are 81 variables 
 and 113937 observations. For the sake of submission, I don't print all the 
-variables. I explain the variales I chose, as I explain each section. The 
+variables. I explain the variables I chose, as I explain each section. The 
 variables pertain to the actual loan, and variables which can affect the 
 credit score of a person which in turn influences the APR of the loan. First, 
 I read the variables description in the provided file. Based on the available 
@@ -38,13 +38,13 @@ vs. being paid off?
 c) Which variables most influence the credit score?
 
 Other questions that arise, while I visualize the data are mentioned in the 
-separate chunks. I have combined univariate, bivariate and multivariate plots 
+separate chunks. I have combined uni-variate, bi-variate and multivariate plots 
 in the chunks because my focus was in understanding a variable well enough 
 before investigating another which required a combination of plots. 
 
 ##### Read Data File and first Look at the data.
 First,I load the data and get the variable names, and take a first look 
-by summarising the data.
+by summarizing the data.
 
 ```{r load}
 dirname="data"
@@ -101,7 +101,7 @@ nacount <- nacount[order(na_count),]
 nacount
 ```
 
-Some of the varables in no particular preference or order, with large number 
+Some of the variables in no particular preference or order, with large number 
 of NA's are 
 
 OpenCreditLines	7604		
@@ -367,7 +367,7 @@ ggplot(data=sd2,aes(x=LoanCurrentDaysDelinquent))+
 
 We notice the following things :
 We see unexpectedly two different distributions for before and after 2009.
-Before 2008, there are two peaks, Deliquency of about 2000 
+Before 2008, there are two peaks, Delinquency of about 2000 
 days, (Chargedoff) and 500 days(Defaulted). while after 2008, 
 the peak for charged-off data is lower, which probably implies a stricter
 criterion of when a loan is classified as Charged-. Typically, loans
@@ -376,7 +376,7 @@ when there is no expectation of return, it is Chargedoff.
 
 The plots above show how the LoanStatus relates to LoanCurrentDaysDelinquent. 
 Since these two variables are closely related, I can use the LoanStatus from 
-now on. Unexpectedly, the PastDues (1-15), and (16-30) dont seem to have any 
+now on. Unexpectedly, the PastDues (1-15), and (16-30) don't seem to have any 
 data, but a closer look shows the statistics is very low. See the plots below :
 
 ```{r fig.width=6,fig.height=2}
@@ -674,10 +674,10 @@ plot1b + geom_point() + xlim(250.0,1000.0) + geom_smooth() +
 
 ```
 
-One can see that the mean APR remains slightly above 0.25 and varies upto a 
+One can see that the mean APR remains slightly above 0.25 and varies up to a 
 maximum of 0.3 below a score of 500, but between 500-640 it can reach a maximum 
 of 0.38, with a good fraction of people ending up with high APR's as can seen 
-from the size of the point. The mean APR remains fairlt constant upto 640, 
+from the size of the point. The mean APR remains fairly constant up to 640, 
 and then starts dropping. The upper scores remain largely constant at about 
 0.35 and a large group of people get that amount but there is a fair 
 distribution for lower amounts as well. For higher Creditscores, more 
@@ -819,7 +819,7 @@ ggplot(temp,aes(x=BankcardUtilization,fill=NewCreditGrade))+
 
 ```
 
-One can see quite a bit of shape difference of the variablea across credit 
+One can see quite a bit of shape difference of the variables across credit 
 ranges.
 For both AvailableBankCredit and Bankcardutilization. This tells us that these 
 two variables would affect the credit score considerably. One can see very 
@@ -869,7 +869,7 @@ higher creditscores. If you have high creditscores > 700 or so, you can on
 an average have 9-10 creditlines and still be approved for a loan. However 
 it may affect the loan APR. For 90% of people min. acceptable credit score is 
 above 750 if number of credit lines >=8. But the median is slightly lower. 
-The mean varies between scores of 520 - 680, steadil rising, but 
+The mean varies between scores of 520 - 680, steadily rising, but 
 plateaus at ~680 for > 8 open credit lines. So once you have beyond 8 open 
 CreditLines your acceptable credit score, is largely independant of this value. 
 Also, 90% of people have open Credit lines between 3-14 for credit ranges 
@@ -938,12 +938,12 @@ ggplot(dfsa,aes(x=MeanCreditScore,y=DToIPercent))+
 
 AA has the lowest DtoI for "Completed" Status. The median DtoI are almost same for 
 charged-off and completed loans. It seems DtoI does not matter much for which loans are 
-charged-off vs Completed. But it does mtter for those that defaulted, as for 
+charged-off vs Completed. But it does matter for those that defaulted, as for 
 each of the categories the DtoI ratio is lower for Completed vs. Defaulted 
 except for categories E, and NC. 
 
 The DtoI is between 15 - 25% as (See the IQR for A,B,C,D) and 
-slightly lower for A,E,HA categories. The mediam DtoI ratio is slightly higher 
+slightly lower for A,E,HA categories. The median DtoI ratio is slightly higher 
 for Homeowners vs. Non Homeowners.
 
 ### IncomeLevel,Homeowner, CreditScore
@@ -1124,7 +1124,7 @@ minimum APR's, and it increased until 2009, 2010. APR's then show a decreasing
 trend from 2011-2014. This happens for all creditgrade categories, except maybe 
 HR and NC.
 
-The second and third sub-plots esentially show the variation of the APR mean. 
+The second and third sub-plots essentially show the variation of the APR mean. 
 The second sub-plot shows the mean APR and the standard error on the mean, 
 calculated as mean/sqrt(n-1), where n is the number of events in each bin. 
 The third sub-plot shows the distribution of the plots with the mean 
@@ -1189,7 +1189,7 @@ Here is the mapping for the levels :
 fac <- factor(c("Not displayed","Not employed","\$0","\$1-24,999",
 "\$25,000-49,999","\$50,000-74,999","\$75,000-99,999","$100,000+"))
                 
-There is a weak dependance of the CreditScore on Income. I chose this plot, 
+There is a weak dependence of the CreditScore on Income. I chose this plot, 
 because I had the perception that higher Income groups would have a higher 
 creditscore as well, but this does not seem to be the case. So the
 reality is different from what I thought. It also shows that Homeowners have 
@@ -1201,7 +1201,7 @@ higher credit scores.
 ## Reflection
 The prospser loans dataset is a vast dataset with ~100k observations and 81 
 variables spanning across several years. The general analysis revealed a 
-positive corelation between credit score and borrowing rate. This led to 
+positive correlation between credit score and borrowing rate. This led to 
 revealing which variables play an important role in the credit score. 
 A correlation study indicated some powerful variables which influence the 
 credit score. Variables such as "Delinquencies", "AvailableBankCardBalance", 
@@ -1233,7 +1233,7 @@ credit scores, and how having a prosper loan as well influences the APR.
 Some additional variables such as the Borrower's age and sex could be included. 
 I would like to also explore what caused the dip in the 2009 APR rate and why it 
 picked up again. Needless to say, there must be more information on this in the 
-financial world, and analysing this dataset has sparked my curiosity to know 
+financial world, and analyzing this dataset has sparked my curiosity to know 
 more about this. 
 
 This project uncovered a lot of surprises about the lending world and different 

@@ -6,10 +6,10 @@ Author : Tania Moulik
 
 Contact: tania.moulik@gmail.com
 
-# Description
+## Description
 In this project I used R to explore Prosper Financial loan data.
 
-This was a project done as part of the Udacity Course and it involved data visualization and analysis of a dataset of one's 
+This project is done as part of the Udacity Course and it involves data visualization and analysis of a dataset, of one's 
 own choice. I chose the Prosper financial loan data.
 
 Some of the variables explored in this project are :
@@ -23,7 +23,8 @@ Some of the variables explored in this project are :
 - Home owner status
 - Employment status.
 
-The variables pertain to the actual loan, and variables which can affect the credit score of a person which in turn influences the APR of the loan.
+Some of the variables characterize the loan while others affect the credit score, 
+which in turn influences the APR of the loan. Some of these relationships are studied.
 
 Further references for this project:
 
